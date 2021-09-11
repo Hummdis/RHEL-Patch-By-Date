@@ -13,7 +13,9 @@ Then there's the the script route.   Given that this was pretty much mandated 
 
 ## Compatibility
 This was written and tested on RHEL 8.3 and 7.8, but should work on any YUM-based system.  Though, the return of the following command may warrant some small modifications:
+
     yum updateinfo info security | grep -E "Update ID:|Updated:"
+
 The formatting is different for RHEL 7 and 8, so it'll probably be different for your distro.
 
 ## Installation
