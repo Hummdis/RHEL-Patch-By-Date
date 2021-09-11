@@ -13,7 +13,7 @@ Then there's the the script route.   Given that this was pretty much mandated 
 
 ## Compatibility
 This was written and tested on RHEL 8.3 and 7.8, but should work on any YUM-based system.  Though, the return of the following command may warrant some small modifications:
-```yum updateinfo info security | grep -E "Update ID:|Updated:"```
+    yum updateinfo info security | grep -E "Update ID:|Updated:"
 The formatting is different for RHEL 7 and 8, so it'll probably be different for your distro.
 
 ## Installation
@@ -22,6 +22,6 @@ There really isn't an installation. Just download it and run it.
 ## Useage
 You can execute the script by running:
 
-```update-by-date.sh <date>```
+    update-by-date.sh <date>
 
 The date is in the YYYY-MM-DD format (ISO-8601) and yes, you include the hyphens.
