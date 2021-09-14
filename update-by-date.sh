@@ -12,7 +12,7 @@
 # Apply all security patches for RHEL systems up to a given date.
 # All events logged to /var/log/security_updates.log
 
-VERSION="0.1.0"
+VERSION="0.1.1"
 
 CHECK_DATE="$1"
 FULL_UPDATE_LIST="/tmp/fullupdatelist.txt"
@@ -24,9 +24,10 @@ UPDATES_TODO=()
 readonly CHECK_DATE
 readonly FULL_UPDATE_LIST
 readonly UPDATE_LIST
+readonly LOG_FILE
 
-# Validate the date given.
 validate_date() {
+    # Validate the date given.
     declare -i DAY
     
     #shellcheck disable=SC2046,SC2001
@@ -46,14 +47,14 @@ validate_date() {
     fi
 }
 
-# For consistent log entries.
 echo_log() {
+    # For consistent log entries.
     TIMESTAMP=$(date +%F\ %H:%M:%S)
     echo "$TIMESTAMP: $1" >> "$LOG_FILE"
 }
 
-# Help Text
 help_text() {
+    # Display Help Text
     echo "ERROR: Invalid 'date' provided.
 $0 <date>
 
@@ -61,17 +62,27 @@ Date must be in YYYY-MM-DD format (ISO-8601 standard) and not be in the future.
 Eg: $0 2019-12-25"
 }
 
-generate_list() {
-# First, get a list of the security updates available (not installed).
-    echo_log "Generating list of uninstalled security advisories..."
-    if grep -q grep "VERSION_ID=7" /etc/os-release; then
-        yum updateinfo info security | grep -E "Update ID :|Issued :" >> $FULL_UPDATE_LIST
-    elif grep -q grep "VERSION_ID=8" /etc/os-release; then
-        yum updateinfo info security | grep -E "Update ID:|Updated:" >> $FULL_UPDATE_LIST
+check_os_ver() {
+    if grep -q 'VERSION_ID="7' /etc/os-release; then
+        RHEL_VER="7"
+    elif grep -q 'VERSION_ID="8' /etc/os-release; then
+        RHEL_VER="8"
     else
-        echo "Failed to determine which RHEL relase.  Modify lines 56-63 to support your OS or submit an issue at GitHub."
-        echo "Be sure to include the full results of 'cat /etc/os-release' so it can be fixed."
-        exit 69
+        echo "Unknown RHEL version."
+        exit 68
+    fi
+    readonly RHEL_VER
+}
+
+generate_list() {
+    # First, get a list of the security updates available (not installed).
+    echo_log "Generating list of uninstalled security advisories..."
+    touch $FULL_UPDATE_LIST
+    touch $UPDATE_LIST
+    if [ "$RHEL_VER" == "7" ]; then
+        yum updateinfo info security | grep -E "Update ID :|Issued :" >> $FULL_UPDATE_LIST
+    elif [ "$RHEL_VER" == "8" ]; then
+        yum updateinfo info security | grep -E "Update ID:|Updated:" >> $FULL_UPDATE_LIST
     fi
     while mapfile -t -n 2 ary && ((${#ary[@]})); do
         printf '%s\t' "${ary[@]}" >> $UPDATE_LIST
@@ -84,9 +95,13 @@ processing() {
     echo_log "Reading full advisory list..."
     OLD_IFS="$IFS"
     while IFS= read -r LINE; do
-        UPDATE_ID=$(echo "$LINE" | awk '{print $3}')
-        UPDATE_DATE=$(echo "$LINE" | awk '{print $5}')
-
+        if [ "$RHEL_VER" == "7" ]; then
+            UPDATE_ID=$(echo "$LINE" | awk '{print $4}')
+            UPDATE_DATE=$(echo "$LINE" | awk '{print $7}')        
+        elif [ "$RHEL_VER" == "8" ]; then
+            UPDATE_ID=$(echo "$LINE" | awk '{print $3}')
+            UPDATE_DATE=$(echo "$LINE" | awk '{print $5}')
+        fi
         # Before we compare dates, convert the dates to a Unix timestamp, then
         # compare them.
         CHK_DATE=$(date -d "$CHECK_DATE" +%s)
@@ -117,6 +132,9 @@ do_updates() {
     for UPDATE in "${UPDATES_TODO[@]}"; do
         echo_log "Starting installation of $UPDATE..."
         yum -q -y update --advisory="$UPDATE"
+        if [ $? -ne 0 ]; then
+            RC=$?
+        fi
     done
     echo_log "Installation process completed."
 }
@@ -127,12 +145,20 @@ cleanup() {
     rm -f "$FULL_UPDATE_LIST" "$UPDATE_LIST"
 }
 
+# Make sure we get our proxy info.
+. /etc/profile.d/proxy.sh
+
 # Do it in the order we say.
-echo "YUM Update By Date v$VERSION"
 validate_date
+check_os_ver
 generate_list
 processing
 do_updates
 cleanup
+
+# If the exit code of YUM is anything other than 0, exit with that code.
+if [ $RC -ne 0 ]; then
+    exit $RC
+fi
 
 exit 0
