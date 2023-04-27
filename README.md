@@ -26,4 +26,12 @@ You can execute the script by running:
 
     update-by-date.sh <date>
 
-The date is in the YYYY-MM-DD format (ISO-8601) and yes, you include the hyphens.
+The date is in the YYYY-MM-DD format (ISO-8601), and yes, you include the hyphens.
+
+## Logging
+
+All events are logged into `/var/log/security_updates.log`, so that any log ingestion system you have for SEIM can be recorded.  The formatting it kept consistent and provides the package names that are updated as well.  This script does not, however, perform any log rotation or tuncation.
+
+## Clean Up
+
+The script cleans up the temporary files that are ceated during the process, so things don't get out of hand.
